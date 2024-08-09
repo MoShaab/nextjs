@@ -1,10 +1,29 @@
 import bcrypt from 'bcrypt';
 import { db } from '@vercel/postgres';
 import { invoices, customers, revenue, users } from '../lib/placeholder-data';
+import { NextResponse } from 'next/server'; // Assuming you're using Next.js
 
-const client = await db.connect();
+export async function GET() {
+  const client = await db.connect(); // Moved inside the GET function
+  try {
+    await client.sql`BEGIN`;
+    await seedUsers(client);
+    await seedCustomers(client);
+    await seedInvoices(client);
+    await seedRevenue(client);
+    await client.sql`COMMIT`;
 
-async function seedUsers() {
+    return NextResponse.json({ message: 'Database seeded successfully' });
+  } catch (error) {
+    await client.sql`ROLLBACK`;
+    console.error('Error seeding database:', error);
+    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
+  } finally {
+    client.release(); // Ensure the client is released after the operation
+  }
+}
+
+async function seedUsers(client) {
   await client.sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
   await client.sql`
     CREATE TABLE IF NOT EXISTS users (
@@ -29,7 +48,7 @@ async function seedUsers() {
   return insertedUsers;
 }
 
-async function seedInvoices() {
+async function seedInvoices(client) {
   await client.sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
 
   await client.sql`
@@ -55,7 +74,7 @@ async function seedInvoices() {
   return insertedInvoices;
 }
 
-async function seedCustomers() {
+async function seedCustomers(client) {
   await client.sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
 
   await client.sql`
@@ -80,7 +99,7 @@ async function seedCustomers() {
   return insertedCustomers;
 }
 
-async function seedRevenue() {
+async function seedRevenue(client) {
   await client.sql`
     CREATE TABLE IF NOT EXISTS revenue (
       month VARCHAR(4) NOT NULL UNIQUE,
@@ -99,24 +118,4 @@ async function seedRevenue() {
   );
 
   return insertedRevenue;
-}
-
-export async function GET() {
-  return Response.json({
-    message:
-      
-  });
-  try {
-    await client.sql`BEGIN`;
-    await seedUsers();
-    await seedCustomers();
-    await seedInvoices();
-    await seedRevenue();
-    await client.sql`COMMIT`;
-
-    return Response.json({ message: 'Database seeded successfully' });
-  } catch (error) {
-    await client.sql`ROLLBACK`;
-    return Response.json({ error }, { status: 500 });
-  }
 }
